@@ -51,6 +51,11 @@ def backup_repos username
     json['values'].each { |repo|
       name = repo['name']
 
+      if repo['scm'] != 'git'
+        warn "Skipping non-git repo '#{name}'"
+        next
+      end
+
       clone_link = repo['links']['clone'].find { |link| link['name'] == 'https' }
       unless clone_link
         warn "Can't find https clone link for repo '#{name}'"
