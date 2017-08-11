@@ -39,34 +39,42 @@ def backup_repo name, url
   FileUtils.rm_rf subfolder unless got_warning
 end
 
-username = 'mortonfox'
+def backup_repos username
+  Dir.mkdir REPOS_FOLDER unless Dir.exist? REPOS_FOLDER
+  Dir.chdir REPOS_FOLDER
 
-Dir.mkdir REPOS_FOLDER unless Dir.exist? REPOS_FOLDER
-Dir.chdir REPOS_FOLDER
+  res = RestClient.get("https://api.bitbucket.org/2.0/repositories/#{username}")
 
-res = RestClient.get("https://api.bitbucket.org/2.0/repositories/#{username}")
+  loop {
+    json = JSON.parse(res.body)
 
-loop {
-  json = JSON.parse(res.body)
+    json['values'].each { |repo|
+      name = repo['name']
 
-  json['values'].each { |repo|
-    name = repo['name']
+      clone_link = repo['links']['clone'].find { |link| link['name'] == 'https' }
+      unless clone_link
+        warn "Can't find https clone link for repo '#{name}'"
+        next
+      end
 
-    clone_link = repo['links']['clone'].find { |link| link['name'] == 'https' }
-    unless clone_link
-      warn "Can't find https clone link for repo '#{name}'"
-      next
-    end
+      url = clone_link['href']
 
-    url = clone_link['href']
+      backup_repo(name, url)
+    }
 
-    backup_repo(name, url)
+    break unless json.key?('next')
+
+    res = RestClient.get(json['next'])
   }
+end
 
-  break unless json.key?('next')
+if ARGV.empty?
+  puts <<-EOM
+Usage: #{File.basename $PROGRAM_NAME} username
+  EOM
+  exit 1
+end
 
-  res = RestClient.get(json['next'])
-}
-
+backup_repos ARGV.first
 
 __END__
